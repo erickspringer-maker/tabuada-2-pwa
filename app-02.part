@@ -1,0 +1,143 @@
+      f.mastery = 3;
+    } else if(f.mastery === 3){
+      f.mastery = 2; // veio devagar/errado depois de dominado: volta pra prática
+    } else if(f.correctStreak >= 2){
+      f.mastery = Math.max(f.mastery, 2);
+    } else {
+      f.mastery = Math.max(f.mastery, 1);
+    }
+    return { rapida: rapida };
+  } else {
+    f.wrong++;
+    f.correctStreak = 0; f.fluentStreak = 0; f.wrongStreak++;
+    f.mastery = f.wrongStreak >= 2 ? 0 : Math.min(f.mastery, 1);
+    return { rapida:false };
+  }
+}
+
+function tempoMedioFato(f){
+  if(!f.timesMs.length) return null;
+  var soma = f.timesMs.reduce(function(a,b){return a+b;},0);
+  return soma / f.timesMs.length;
+}
+
+function pontuacaoPrioridade(key){
+  var f = state.facts[key];
+  var base = f.mastery===0 ? 100 : f.mastery===1 ? 60 : f.mastery===2 ? 25 : 5;
+  var penalidadeErro = f.wrongStreak * 40;
+  var minutosDesdeVisto = f.lastSeen ? (Date.now()-f.lastSeen)/60000 : 60;
+  var recencia = Math.min(minutosDesdeVisto, 20);
+  var checagemEspacada = (f.mastery===3 && minutosDesdeVisto > 10) ? 30 : 0;
+  return base + penalidadeErro + recencia + checagemEspacada;
+}
+
+function escolherProximoFato(pool, excluirKey){
+  var candidatos = pool.filter(function(k){ return k !== excluirKey; });
+  if(!candidatos.length) candidatos = pool.slice();
+  var pesos = candidatos.map(pontuacaoPrioridade);
+  var total = pesos.reduce(function(a,b){return a+b;},0);
+  var alvo = Math.random() * total;
+  var acumulado = 0;
+  for(var i=0;i<candidatos.length;i++){
+    acumulado += pesos[i];
+    if(alvo <= acumulado) return candidatos[i];
+  }
+  return candidatos[candidatos.length-1];
+}
+
+/* ---------- Voz ---------- */
+function falar(texto){
+  if(!state.settings.voiceOn) return;
+  try{
+    if(!('speechSynthesis' in window)) return;
+    var u = new SpeechSynthesisUtterance(texto);
+    u.lang = 'pt-BR';
+    u.rate = 0.95;
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(u);
+  }catch(e){}
+}
+
+/* ---------- Navegação / estado de tela ---------- */
+var tela = { nome:'home' };
+var sessao = null; // controlador da tela de prática/prova
+
+function ir(nome, params){
+  tela = Object.assign({ nome: nome }, params||{});
+  render();
+}
+
+/* ---------- Controlador de prática ---------- */
+function novaSessaoPratica(opts){
+  // opts: {tipo:'tabuada', n} ou {tipo:'exame'} ou {tipo:'custom', keys:[...]}
+  var pool, sequencial = false, sequenciaFixa = null;
+  if(opts.tipo === 'tabuada'){
+    var fs = fatosDaTabuada(opts.n);
+    pool = fs.map(function(f){return f.key;});
+    var virgem = fs.every(function(f){ return state.facts[f.key].attempts === 0; });
+    if(virgem){
+      sequencial = true;
+      sequenciaFixa = fs.slice();
+    }
+  } else if(opts.tipo === 'custom'){
+    pool = opts.keys.slice();
+  } else { // exame
+    var elegiveis = TABLES.filter(tabuadaDominada);
+    var set = {};
+    elegiveis.forEach(function(n){ fatosDaTabuada(n).forEach(function(f){ set[f.key]=true; }); });
+    pool = Object.keys(set);
+  }
+  return {
+    opts: opts,
+    pool: pool,
+    sequencial: sequencial,
+    seqIdx: 0,
+    seqFixa: sequenciaFixa,
+    atual: null, // {key,a,b}
+    buffer: '',
+    tShown: 0,
+    tPrimeiroDigito: 0,
+    apagouCount: 0,
+    respondendo: false,
+    examTotal: opts.tipo==='exame' ? Math.min(EXAM_LENGTH, Math.max(8, pool.length*2)) : null,
+    examFeitas: 0,
+    examAcertos: 0,
+    examFracos: {},
+    janelaErros: [],
+    inicioSessaoMs: Date.now()
+  };
+}
+
+function proximaConta(s){
+  if(s.sequencial && s.seqIdx < s.seqFixa.length){
+    var f = s.seqFixa[s.seqIdx];
+    s.atual = { key:f.key, a:f.a, b:f.b };
+  } else if(s.opts.tipo === 'tabuada'){
+    var n = s.opts.n;
+    var k = s.atual ? keyToK(s.atual.key, n) : null;
+    var prevKey = s.atual ? s.atual.key : null;
+    var novaKey = escolherProximoFato(s.pool, prevKey);
+    var kk = keyToK(novaKey, n);
+    s.atual = { key: novaKey, a: n, b: kk };
+  } else {
+    var prevKey2 = s.atual ? s.atual.key : null;
+    var novaKey2 = escolherProximoFato(s.pool, prevKey2);
+    var partes = novaKey2.split('x');
+    var x = parseInt(partes[0],10), y = parseInt(partes[1],10);
+    if(Math.random() < 0.5){ var t = x; x = y; y = t; }
+    s.atual = { key: novaKey2, a:x, b:y };
+  }
+  s.buffer = '';
+  s.tPrimeiroDigito = 0;
+  s.apagouCount = 0;
+  s.respondendo = false;
+  s.tShown = performance.now();
+}
+
+function keyToK(key, n){
+  var partes = key.split('x').map(Number);
+  return partes[0] === n ? partes[1] : partes[0];
+}
+
+function digitar(d){
+  var s = sessao;
