@@ -1,0 +1,106 @@
+    '</div>' +
+    dicaHtml +
+    renderTeclado();
+}
+
+function renderTeclado(){
+  var linhas = [['1','2','3'],['4','5','6'],['7','8','9']];
+  var html = '<div class="teclado">';
+  linhas.forEach(function(l){
+    l.forEach(function(d){
+      html += '<button class="tecla" data-acao="digito" data-d="'+d+'">'+d+'</button>';
+    });
+  });
+  var ligada = sessao && sessao.buffer.length;
+  html += '<button class="tecla apagar" data-acao="apagar">⌫</button>';
+  html += '<button class="tecla" data-acao="digito" data-d="0">0</button>';
+  html += '<button class="tecla confirmar'+(ligada?'':' desligada')+'" id="tecla-confirmar" data-acao="confirmar">✓</button>';
+  html += '</div>';
+  return html;
+}
+
+function renderPausa(){
+  return '<div class="celebra">' +
+    '<div class="selo">'+ICONE_PAUSA+'</div>' +
+    '<h2>Já treinou bastante hoje.</h2>' +
+    '<p>Guarda o resto pra outra hora?</p>' +
+    '<div style="display:flex;gap:10px;margin-top:10px">' +
+    '<button class="btn btn-fantasma" style="background:#fff" data-acao="irHome">Parar por aqui</button>' +
+    '<button class="btn btn-acao" data-acao="continuarMesmoAssim">Continuar</button>' +
+    '</div>' +
+    '</div>';
+}
+
+function renderTabuadaConcluida(){
+  var n = tela.n;
+  var sugerida = proximaSugerida();
+  var proxHtml = sugerida
+    ? '<button class="btn btn-estrutura" data-acao="abrirTabuada" data-n="'+sugerida+'">Praticar a do '+sugerida+'</button>'
+    : '';
+  return '<div class="celebra">' +
+    '<div class="selo">✓</div>' +
+    '<h2>Você aprendeu a tabuada do '+n+'.</h2>' +
+    '<p>Todas as contas ficaram rápidas e certas.</p>' +
+    '<div style="display:flex;flex-direction:column;gap:10px;margin-top:14px;width:100%;max-width:260px">' +
+    proxHtml +
+    '<button class="btn btn-fantasma" style="background:#fff" data-acao="irHome">Voltar ao início</button>' +
+    '</div>' +
+    '</div>';
+}
+
+function renderResultadoProva(){
+  var acertos = tela.acertos, total = tela.total, fracos = tela.fracos||[];
+  var chips = fracos.slice(0,6).map(function(k){
+    var p = k.split('x');
+    return '<div class="chip">'+p[0]+' × '+p[1]+'</div>';
+  }).join('');
+  var praticarBtn = fracos.length
+    ? '<button class="btn btn-acao" style="width:100%" data-acao="praticarFracos" data-keys="'+fracos.join(',')+'">Praticar essas agora</button>'
+    : '';
+  return barraTopo('Resultado', 'home') +
+    '<div class="placar"><div class="n">'+acertos+'/'+total+'</div><div class="rotulo">contas certas</div></div>' +
+    (chips ? '<div class="subt" style="text-align:center">Vamos reforçar:</div><div class="chips">'+chips+'</div>' : '<div class="subt" style="text-align:center">Mandou muito bem.</div>') +
+    '<div style="display:flex;flex-direction:column;gap:10px;margin-top:10px">' +
+    praticarBtn +
+    '<button class="btn btn-fantasma" style="background:#fff" data-acao="irHome">Voltar ao início</button>' +
+    '</div>';
+}
+
+function categoriaTempo(ms){
+  if(ms == null) return '—';
+  if(state.baseline.median == null) return (ms/1000).toFixed(1)+'s';
+  if(ms <= state.baseline.median*FAST_MULTIPLIER) return 'rápido ('+(ms/1000).toFixed(1)+'s)';
+  return 'lento ('+(ms/1000).toFixed(1)+'s)';
+}
+
+function renderPainel(){
+  var totalAttempts = 0, totalCorrect = 0;
+  Object.keys(state.facts).forEach(function(k){
+    totalAttempts += state.facts[k].attempts;
+    totalCorrect += state.facts[k].correct;
+  });
+  var acertoGeral = totalAttempts ? Math.round(100*totalCorrect/totalAttempts) : 0;
+  var horasTotal = (state.totalPracticeMs/3600000).toFixed(1);
+
+  var linhasTabuada = TABLES.map(function(n){
+    var pct = pctTabuada(n);
+    return '<div class="linha-tabuada-p"><div class="rotulo">Do '+n+'</div>' +
+      '<div class="barra"><i style="width:'+pct+'%"></i></div>' +
+      '<div class="pct">'+pct+'%</div></div>';
+  }).join('');
+
+  var fracos = Object.keys(state.facts)
+    .filter(function(k){ return state.facts[k].attempts>0; })
+    .sort(function(a,b){ return pontuacaoPrioridade(b) - pontuacaoPrioridade(a); })
+    .slice(0,8);
+
+  var linhasFracos = fracos.map(function(k){
+    var f = state.facts[k];
+    var p = k.split('x');
+    var acerto = f.attempts ? Math.round(100*f.correct/f.attempts) : 0;
+    return '<tr><td>'+p[0]+' × '+p[1]+'</td><td>'+f.attempts+'</td><td>'+acerto+'%</td><td>'+categoriaTempo(tempoMedioFato(f))+'</td></tr>';
+  }).join('');
+
+  return barraTopo('Painel', 'home') +
+    '<div class="painel">' +
+    '<div class="resumo-grid">' +
