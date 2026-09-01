@@ -1,0 +1,66 @@
+  min-height:26px; text-align:center; font-weight:700; font-size:15px; margin-bottom:10px;
+  transition:opacity .15s ease;
+}
+.feedback-linha.ok{color:var(--fechou);}
+.feedback-linha.errou{color:var(--bug);}
+.dica{
+  background:var(--bug-fraca); color:var(--bug); border-radius:12px; padding:10px 14px;
+  font-size:14px; text-align:center; margin-bottom:12px;
+}
+
+/* TECLADO */
+.teclado{display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-top:auto;}
+.tecla{
+  background:#fff; border-radius:14px; padding:18px 0; text-align:center;
+  font-family:var(--font-mono); font-size:24px; font-weight:500;
+  box-shadow:0 3px 0 rgba(42,38,34,0.10);
+}
+.tecla:active{transform:translateY(2px); box-shadow:0 1px 0 rgba(42,38,34,0.10);}
+.tecla.apagar{color:var(--tinta-fraca); font-size:19px;}
+.tecla.confirmar{background:var(--acao); color:#fff;}
+.tecla.confirmar.desligada{background:var(--papel-2); color:var(--tinta-fraca);}
+
+/* BARRA DE PROVA */
+.barra-prova{height:8px; background:var(--papel-2); border-radius:5px; margin:4px 0 26px; overflow:hidden;}
+.barra-prova > i{display:block; height:100%; background:var(--estrutura); border-radius:5px;}
+.contagem-prova{text-align:center; font-size:14px; color:var(--tinta-fraca); margin-top:-18px; margin-bottom:18px;}
+
+/* TABUADA CONCLUIDA */
+.celebra{flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; gap:14px;}
+.celebra .selo{
+  width:88px; height:88px; border-radius:50%; background:var(--fechou-fraca);
+  display:flex; align-items:center; justify-content:center; font-size:40px; color:var(--fechou); font-weight:700;
+}
+.celebra h2{font-size:23px;}
+.celebra p{color:var(--tinta-fraca); margin:0;}
+
+/* RESULTADO DA PROVA */
+.placar{text-align:center; margin:10px 0 22px;}
+.placar .n{font-family:var(--font-mono); font-size:52px; font-weight:500;}
+.placar .rotulo{color:var(--tinta-fraca); font-size:15px;}
+.chips{display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin:14px 0 22px;}
+.chip{
+  background:var(--bug-fraca); color:var(--bug); font-family:var(--font-mono); font-size:15px;
+  padding:7px 12px; border-radius:10px; font-weight:500;
+}
+
+/* PAINEL DOS PAIS */
+.painel{font-family:var(--font-body);}
+.painel h3{font-size:15px; text-transform:uppercase; letter-spacing:.04em; color:var(--tinta-fraca); margin:22px 0 10px;}
+.painel h3:first-of-type{margin-top:6px;}
+.resumo-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:10px;}
+.resumo-item{background:#fff; border-radius:12px; padding:12px 10px; text-align:center;}
+.resumo-item .v{font-family:var(--font-mono); font-size:22px;}
+.resumo-item .r{font-size:11px; color:var(--tinta-fraca);}
+.linha-tabuada-p{display:flex; align-items:center; gap:10px; padding:6px 0; font-size:14px;}
+.linha-tabuada-p .rotulo{width:64px; flex-shrink:0;}
+.linha-tabuada-p .barra{flex:1; height:7px; background:var(--papel-2); border-radius:4px; overflow:hidden;}
+.linha-tabuada-p .barra>i{display:block; height:100%; background:var(--estrutura);}
+.linha-tabuada-p .pct{width:38px; text-align:right; font-family:var(--font-mono); font-size:13px;}
+table.fatos-fracos{width:100%; border-collapse:collapse; font-size:13px; margin-top:4px;}
+table.fatos-fracos th{text-align:left; color:var(--tinta-fraca); font-weight:700; font-size:11px; padding:4px 6px; border-bottom:1px solid var(--linha);}
+table.fatos-fracos td{padding:6px; border-bottom:1px solid var(--linha); font-family:var(--font-mono);}
+.acoes-painel{display:flex; gap:10px; margin-top:24px;}
+.acoes-painel .btn{flex:1; font-size:14px; padding:12px;}
+
+.oculto{display:none !important;}
