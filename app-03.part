@@ -1,0 +1,151 @@
+  if(!s || s.respondendo) return;
+  if(s.buffer.length >= MAX_DIGITS) return;
+  if(!s.tPrimeiroDigito) s.tPrimeiroDigito = performance.now();
+  s.buffer += d;
+  renderRespostaCaixa();
+}
+
+function apagar(){
+  var s = sessao;
+  if(!s || s.respondendo) return;
+  if(!s.buffer.length) return;
+  s.buffer = s.buffer.slice(0,-1);
+  s.apagouCount++;
+  renderRespostaCaixa();
+}
+
+function confirmar(){
+  var s = sessao;
+  if(!s || s.respondendo || !s.buffer.length) return;
+  s.respondendo = true;
+  var agora = performance.now();
+  var elapsed = agora - s.tShown;
+  var esperado = s.atual.a * s.atual.b;
+  var digitado = parseInt(s.buffer,10);
+  var correta = digitado === esperado;
+  var info = registrarResposta(s.atual.key, correta, elapsed);
+  salvarEstado();
+
+  if(s.opts.tipo === 'exame'){
+    s.examFeitas++;
+    if(correta) s.examAcertos++;
+    else s.examFracos[s.atual.key] = true;
+    if(!correta) s.examFracos[s.atual.key] = true;
+    else if(!info.rapida) s.examFracos[s.atual.key] = true;
+  }
+
+  s.janelaErros.push(correta?0:1);
+  if(s.janelaErros.length > FATIGUE_WINDOW) s.janelaErros.shift();
+
+  mostrarFeedback(correta, esperado);
+
+  window.setTimeout(function(){ avancar(); }, correta ? 650 : 1100);
+}
+
+function avancar(){
+  var s = sessao;
+  if(!s){ return; }
+
+  if(s.sequencial && s.seqIdx < s.seqFixa.length){
+    var f = state.facts[s.atual.key];
+    var acertouEssaVez = f.wrongStreak === 0;
+    if(!acertouEssaVez){
+      proximaConta(s); // repete a mesma conta imediatamente
+      render();
+      return;
+    }
+    s.seqIdx++;
+    if(s.seqIdx >= s.seqFixa.length){
+      s.sequencial = false; // primeira volta completa, passa a embaralhar
+    }
+  }
+
+  if(s.opts.tipo === 'tabuada'){
+    if(tabuadaDominada(s.opts.n)){
+      state.tablesStarted[s.opts.n] = true;
+      finalizarSessaoPratica();
+      ir('tabuadaConcluida', { n: s.opts.n });
+      return;
+    }
+    state.tablesStarted[s.opts.n] = true;
+  }
+
+  var cansaço = (Date.now() - s.inicioSessaoMs > FATIGUE_TIME_MS) ||
+    (s.janelaErros.length === FATIGUE_WINDOW && s.janelaErros.reduce(function(a,b){return a+b;},0) >= FATIGUE_ERRORS);
+
+  if(s.opts.tipo === 'exame'){
+    if(s.examFeitas >= s.examTotal){
+      finalizarSessaoPratica();
+      ir('resultadoProva', { acertos: s.examAcertos, total: s.examTotal, fracos: Object.keys(s.examFracos) });
+      return;
+    }
+    proximaConta(s);
+    render();
+    return;
+  }
+
+  if(cansaço && tela.nome === 'pratica'){
+    finalizarSessaoPratica();
+    ir('pausa', { retomar: s.opts });
+    return;
+  }
+
+  proximaConta(s);
+  render();
+}
+
+function finalizarSessaoPratica(){
+  if(!sessao) return;
+  var dur = Date.now() - sessao.inicioSessaoMs;
+  state.totalPracticeMs += dur;
+  state.sessions.push({ date: Date.now(), durationMs: dur, tipo: sessao.opts.tipo });
+  if(state.sessions.length > 60) state.sessions.shift();
+  salvarEstado();
+}
+
+var feedbackAtual = { texto:'', tipo:'', dica:'' };
+
+function mostrarFeedback(correta, esperado){
+  var s = sessao;
+  if(correta){
+    feedbackAtual = { texto: MSG_OK[Math.floor(Math.random()*MSG_OK.length)], tipo:'ok', dica:'' };
+    falar(String(esperado));
+  } else {
+    var linha = MSG_ERRO[Math.floor(Math.random()*MSG_ERRO.length)];
+    feedbackAtual = { texto: linha + ' ' + s.atual.a + ' × ' + s.atual.b + ' = ' + esperado, tipo:'errou', dica:'' };
+    falar(s.atual.a + ' vezes ' + s.atual.b + ' é igual a ' + esperado);
+    var f = state.facts[s.atual.key];
+    if(f.wrongStreak >= 2){
+      var dicaChave = String(s.atual.a===1?s.atual.b:s.atual.a);
+      var d1 = DICAS[String(s.atual.a)];
+      var d2 = DICAS[String(s.atual.b)];
+      feedbackAtual.dica = d1 || d2 || '';
+    }
+  }
+  render();
+}
+
+/* ---------- Estudo (exposição) ---------- */
+function novaSessaoEstudo(n){
+  return { n:n, idx:0 };
+}
+
+/* ---------- Render ---------- */
+var app = document.getElementById('app');
+
+function render(){
+  var html = '';
+  if(tela.nome === 'home') html = renderHome();
+  else if(tela.nome === 'estudo') html = renderEstudo();
+  else if(tela.nome === 'pratica') html = renderPratica();
+  else if(tela.nome === 'pausa') html = renderPausa();
+  else if(tela.nome === 'tabuadaConcluida') html = renderTabuadaConcluida();
+  else if(tela.nome === 'resultadoProva') html = renderResultadoProva();
+  else if(tela.nome === 'painel') html = renderPainel();
+  app.innerHTML = html;
+  ligarEventos();
+}
+
+function renderRespostaCaixa(){
+  var el = document.getElementById('resposta-caixa');
+  if(!el) return;
