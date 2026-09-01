@@ -1,0 +1,98 @@
+  el.innerHTML = sessao.buffer.length ? sessao.buffer : '<span class="cursor">_</span>';
+  var confirmarBtn = document.getElementById('tecla-confirmar');
+  if(confirmarBtn){
+    if(sessao.buffer.length) confirmarBtn.classList.remove('desligada');
+    else confirmarBtn.classList.add('desligada');
+  }
+}
+
+function barraTopo(titulo, aoVoltar){
+  return '<div class="topo"><button class="voltar" data-acao="'+aoVoltar+'">‹</button>' +
+    '<div class="titulo-topo">'+titulo+'</div></div>';
+}
+
+function renderHome(){
+  var sugerida = proximaSugerida();
+  var cartoes = TABLES.map(function(n){
+    var pct = pctTabuada(n);
+    var dominada = tabuadaDominada(n);
+    var classe = 'tab-card' + (dominada ? ' dominada' : '');
+    var tag = (n === sugerida) ? '<div class="tag-sugerido">Sugerida</div>' : '';
+    return '<button class="'+classe+'" data-acao="abrirTabuada" data-n="'+n+'">'+
+      tag +
+      '<div class="n">'+n+'</div>' +
+      '<div class="rotulo">tabuada</div>' +
+      '<div class="barra"><i style="width:'+pct+'%"></i></div>' +
+      '</button>';
+  }).join('');
+
+  var dominadas = TABLES.filter(tabuadaDominada).length;
+  var provaLiberada = dominadas >= EXAM_MIN_TABLES;
+  var provaBtn = provaLiberada
+    ? '<button class="btn btn-estrutura" style="width:100%" data-acao="iniciarProva">Prova — contas misturadas</button>'
+    : '<button class="btn btn-desabilitado" style="width:100%" disabled>Prova — contas misturadas</button>';
+  var ajuda = provaLiberada ? '' : '<div class="prova-ajuda">Domine mais '+(EXAM_MIN_TABLES-dominadas)+' tabuada(s) para desbloquear.</div>';
+
+  return '<div class="topo"><h1>Tabuada</h1></div>' +
+    '<div class="subt">Escolha uma tabuada para praticar</div>' +
+    '<div class="grade-tabuadas">'+cartoes+'</div>' +
+    '<div class="prova-bloco">'+provaBtn+ajuda+'</div>' +
+    '<div class="rodape-home"><button class="link-painel" data-acao="abrirPainel">painel</button></div>';
+}
+
+function renderEstudo(){
+  var n = tela.n;
+  var s = tela.estudo || (tela.estudo = novaSessaoEstudo(n));
+  var k = s.idx + 1;
+  var resultado = n * k;
+  var pontos = TABLES.slice(0,10).map(function(i){
+    return '<div class="bolinha '+(i<=k?'b3':'')+'"></div>';
+  }).join('');
+
+  return barraTopo('Tabuada do '+n, 'home') +
+    '<div class="subt" style="text-align:center;margin-bottom:6px">Vamos estudar antes de treinar</div>' +
+    '<div style="display:flex;gap:6px;justify-content:center;margin-bottom:18px">'+pontos+'</div>' +
+    '<div class="palco" style="justify-content:center">' +
+    '<div class="cartao-conta">' +
+    '<div class="equacao">'+n+' × '+k+' = <span class="num" style="color:var(--acao)">'+resultado+'</span></div>' +
+    '</div>' +
+    '<div style="display:flex;gap:10px;margin-top:20px">' +
+    '<button class="btn btn-fantasma" style="flex:1;background:#fff" data-acao="repetirVoz">' + ICONE_SOM + ' Ouvir</button>' +
+    '<button class="btn btn-acao" style="flex:2" data-acao="proximoEstudo">'+(k<10?'Próxima':'Começar treino')+'</button>' +
+    '</div>' +
+    '</div>';
+}
+
+function renderBolinhasTabuada(n){
+  var fs = fatosDaTabuada(n);
+  return '<div class="bolinhas">' + fs.map(function(f){
+    var m = state.facts[f.key].mastery;
+    var cls = m>=3?'b3':m===2?'b2':m===1?'b1':'';
+    return '<div class="bolinha '+cls+'"></div>';
+  }).join('') + '</div>';
+}
+
+function renderPratica(){
+  var s = sessao;
+  if(!s.atual) proximaConta(s);
+  var progresso = s.opts.tipo === 'tabuada' ? renderBolinhasTabuada(s.opts.n) : '';
+  var titulo = s.opts.tipo === 'tabuada' ? 'Tabuada do '+s.opts.n : (s.opts.tipo==='exame' ? 'Prova' : 'Reforço');
+
+  var fbHtml = feedbackAtual.texto
+    ? '<div class="feedback-linha '+(feedbackAtual.tipo==='ok'?'ok':'errou')+'">'+feedbackAtual.texto+'</div>'
+    : '<div class="feedback-linha"></div>';
+  var dicaHtml = feedbackAtual.dica ? '<div class="dica">Dica: '+feedbackAtual.dica+'</div>' : '';
+
+  var barraExame = '';
+  if(s.opts.tipo === 'exame'){
+    var pct = Math.round(100 * s.examFeitas / s.examTotal);
+    barraExame = '<div class="barra-prova"><i style="width:'+pct+'%"></i></div>' +
+      '<div class="contagem-prova">Pergunta '+(s.examFeitas+1)+' de '+s.examTotal+'</div>';
+  }
+
+  return barraTopo(titulo, 'confirmarSair') +
+    progresso + barraExame +
+    fbHtml +
+    '<div class="cartao-conta">' +
+    '<div class="equacao">'+s.atual.a+' × '+s.atual.b+' = </div>' +
+    '<div class="resposta-caixa" id="resposta-caixa">'+(s.buffer.length?s.buffer:'<span class="cursor">_</span>')+'</div>' +
