@@ -1,7 +1,6 @@
-const CACHE_NAME = 'tabuada-2-v3';
+const CACHE_NAME = 'tabuada-2-v4';
 const APP_SHELL = [
-  './', './index.html', './manifest.webmanifest', './icon.svg',
-  './style-01.part', './style-02.part',
+  './', './index.html', './manifest.webmanifest', './icon.svg', './style.css',
   './app-01.part', './app-02.part', './app-03.part', './app-04.part', './app-05.part', './app-06.part'
 ];
 self.addEventListener('install', event => {
