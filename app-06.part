@@ -1,0 +1,115 @@
+    '<div class="resumo-item"><div class="v">'+state.sessions.length+'</div><div class="r">sessões</div></div>' +
+    '<div class="resumo-item"><div class="v">'+horasTotal+'h</div><div class="r">praticadas</div></div>' +
+    '<div class="resumo-item"><div class="v">'+acertoGeral+'%</div><div class="r">acerto geral</div></div>' +
+    '</div>' +
+    '<h3>Domínio por tabuada</h3>' +
+    linhasTabuada +
+    '<h3>Fatos que precisam de reforço</h3>' +
+    '<table class="fatos-fracos"><tr><th>conta</th><th>tent.</th><th>acerto</th><th>tempo</th></tr>' +
+    (linhasFracos || '<tr><td colspan="4" style="color:var(--tinta-fraca)">Ainda sem dados suficientes.</td></tr>') +
+    '</table>' +
+    '<div class="acoes-painel">' +
+    '<button class="btn btn-fantasma" style="background:#fff" data-acao="exportarDados">Exportar dados</button>' +
+    '<button class="btn btn-fantasma" style="background:#fff;color:var(--bug)" data-acao="reiniciarProgresso">Reiniciar progresso</button>' +
+    '</div>' +
+    '</div>';
+}
+
+/* ---------- Eventos ---------- */
+function ligarEventos(){
+  app.onclick = function(ev){
+    var el = ev.target.closest('[data-acao]');
+    if(!el || el.disabled) return;
+    var acao = el.getAttribute('data-acao');
+    handlers[acao] && handlers[acao](el);
+  };
+}
+
+function voltarHome(){
+  sessao = null;
+  feedbackAtual = { texto:'', tipo:'', dica:'' };
+  ir('home');
+}
+
+var handlers = {
+  home: voltarHome,
+  abrirTabuada: function(el){
+    var n = parseInt(el.getAttribute('data-n'),10);
+    feedbackAtual = { texto:'', tipo:'', dica:'' };
+    var virgem = fatosDaTabuada(n).every(function(f){ return state.facts[f.key].attempts === 0; });
+    if(virgem){
+      ir('estudo', { n: n });
+    } else {
+      sessao = novaSessaoPratica({ tipo:'tabuada', n:n });
+      ir('pratica');
+    }
+  },
+  repetirVoz: function(){
+    var s = tela.estudo; var n = tela.n; var k = s.idx+1;
+    falar(n+' vezes '+k+' é igual a '+(n*k));
+  },
+  proximoEstudo: function(){
+    var s = tela.estudo;
+    if(s.idx < 9){
+      s.idx++;
+      render();
+      var n = tela.n, k = s.idx+1;
+      falar(n+' vezes '+k+' é igual a '+(n*k));
+    } else {
+      var n2 = tela.n;
+      sessao = novaSessaoPratica({ tipo:'tabuada', n:n2 });
+      feedbackAtual = { texto:'', tipo:'', dica:'' };
+      ir('pratica');
+    }
+  },
+  digito: function(el){ digitar(el.getAttribute('data-d')); },
+  apagar: function(){ apagar(); },
+  confirmar: function(){ confirmar(); },
+  confirmarSair: function(){ finalizarSessaoPratica(); voltarHome(); },
+  irHome: voltarHome,
+  continuarMesmoAssim: function(){
+    var opts = tela.retomar;
+    sessao = novaSessaoPratica(opts);
+    ir('pratica');
+  },
+  iniciarProva: function(){
+    sessao = novaSessaoPratica({ tipo:'exame' });
+    feedbackAtual = { texto:'', tipo:'', dica:'' };
+    ir('pratica');
+  },
+  praticarFracos: function(el){
+    var keys = el.getAttribute('data-keys').split(',');
+    sessao = novaSessaoPratica({ tipo:'custom', keys:keys });
+    feedbackAtual = { texto:'', tipo:'', dica:'' };
+    ir('pratica');
+  },
+  abrirPainel: function(){ ir('painel'); },
+  exportarDados: function(){
+    var blob = new Blob([JSON.stringify(state,null,2)], { type:'application/json' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = 'tabuada-dados.json';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  },
+  reiniciarProgresso: function(){
+    if(!window.confirm('Apagar todo o progresso salvo?')) return;
+    state = estadoPadrao();
+    garantirFatos();
+    salvarEstado();
+    ir('home');
+  }
+};
+
+window.addEventListener('keydown', function(ev){
+  if(tela.nome !== 'pratica') return;
+  if(ev.key >= '0' && ev.key <= '9'){ digitar(ev.key); }
+  else if(ev.key === 'Backspace'){ apagar(); }
+  else if(ev.key === 'Enter'){ confirmar(); }
+});
+
+/* ---------- Início ---------- */
+carregarEstado();
+render();
+
+})();
