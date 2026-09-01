@@ -1,0 +1,159 @@
+(function(){
+"use strict";
+
+/* ---------- Constantes ---------- */
+var TABLES = [1,2,3,4,5,6,7,8,9,10];
+var SUGGESTED_ORDER = [1,10,2,5,4,3,6,8,9,7];
+var MASTERY_STREAK = 3;
+var FAST_MULTIPLIER = 1.5;
+var MIN_BASELINE_SAMPLES = 5;
+var EXAM_LENGTH = 15;
+var EXAM_MIN_TABLES = 2;
+var FATIGUE_WINDOW = 6;
+var FATIGUE_ERRORS = 4;
+var FATIGUE_TIME_MS = 15*60*1000;
+var STORAGE_KEY = 'tabuada_bia_state_v1';
+var MAX_DIGITS = 3;
+
+var DICAS = {
+  '2': 'Dobra o número.',
+  '3': 'Soma o número três vezes.',
+  '4': 'Dobra e dobra de novo.',
+  '5': 'Termina em 0 ou 5.',
+  '9': 'Truque dos dedos: dobra o de baixo e sobem os de cima e de baixo.',
+  '10': 'Só põe um 0 do lado.'
+};
+
+var ICONE_SOM = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-3px"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M17 8a5 5 0 0 1 0 8"/></svg>';
+var ICONE_PAUSA = '<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>';
+
+var MSG_OK = ['Boa.', 'Isso.', 'Exato.', 'Rápido.', 'Perfeito.'];
+var MSG_ERRO = ['Quase.', 'Vamos de novo.', 'Essa é chata mesmo.', 'De novo, com calma.'];
+
+/* ---------- Estado ---------- */
+var state = null;
+
+function estadoPadrao(){
+  return {
+    facts: {},
+    tablesStarted: {},
+    baseline: { samples: [], median: null },
+    sessions: [],
+    totalPracticeMs: 0,
+    settings: { voiceOn: true },
+    createdAt: Date.now()
+  };
+}
+
+function chaveFato(a,b){
+  var mn = Math.min(a,b), mx = Math.max(a,b);
+  return mn + 'x' + mx;
+}
+
+function fatoPadrao(){
+  return {
+    attempts:0, correct:0, wrong:0,
+    correctStreak:0, fluentStreak:0, wrongStreak:0,
+    mastery:0, timesMs:[], lastSeen:0
+  };
+}
+
+function garantirFatos(){
+  for(var a=1; a<=10; a++){
+    for(var b=a; b<=10; b++){
+      var k = chaveFato(a,b);
+      if(!state.facts[k]) state.facts[k] = fatoPadrao();
+    }
+  }
+}
+
+function carregarEstado(){
+  try{
+    var raw = localStorage.getItem(STORAGE_KEY);
+    if(raw){
+      var parsed = JSON.parse(raw);
+      state = Object.assign(estadoPadrao(), parsed);
+      state.facts = parsed.facts || {};
+      state.baseline = parsed.baseline || { samples:[], median:null };
+      state.settings = Object.assign({voiceOn:true}, parsed.settings||{});
+    } else {
+      state = estadoPadrao();
+    }
+  }catch(e){
+    state = estadoPadrao();
+  }
+  garantirFatos();
+  salvarEstado();
+}
+
+function salvarEstado(){
+  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){}
+}
+
+/* ---------- Fatos / tabuadas ---------- */
+function fatosDaTabuada(n){
+  var out = [];
+  for(var k=1;k<=10;k++) out.push({ key: chaveFato(n,k), a:n, b:k });
+  return out;
+}
+
+function pctTabuada(n){
+  var fs = fatosDaTabuada(n);
+  var soma = 0;
+  fs.forEach(function(f){ soma += Math.min(state.facts[f.key].mastery,3)/3; });
+  return Math.round(100 * soma / fs.length);
+}
+
+function tabuadaDominada(n){
+  return fatosDaTabuada(n).every(function(f){ return state.facts[f.key].mastery >= 3; });
+}
+
+function tabuadaIniciada(n){
+  return fatosDaTabuada(n).some(function(f){ return state.facts[f.key].attempts > 0; });
+}
+
+function proximaSugerida(){
+  for(var i=0;i<SUGGESTED_ORDER.length;i++){
+    var n = SUGGESTED_ORDER[i];
+    if(!tabuadaDominada(n)) return n;
+  }
+  return null;
+}
+
+/* ---------- Linha de base pessoal + maestria ---------- */
+function mediana(arr){
+  if(!arr.length) return null;
+  var s = arr.slice().sort(function(x,y){return x-y;});
+  var mid = Math.floor(s.length/2);
+  return s.length%2 ? s[mid] : (s[mid-1]+s[mid])/2;
+}
+
+function atualizarBaseline(ms){
+  var b = state.baseline;
+  b.samples.push(ms);
+  if(b.samples.length > 24) b.samples.shift();
+  if(b.samples.length >= MIN_BASELINE_SAMPLES) b.median = mediana(b.samples);
+}
+
+function respostaRapida(ms){
+  if(state.baseline.median == null) return true;
+  return ms <= state.baseline.median * FAST_MULTIPLIER;
+}
+
+function registrarResposta(key, correta, elapsedMs){
+  var f = state.facts[key];
+  f.attempts++;
+  f.lastSeen = Date.now();
+  if(correta){
+    f.correct++;
+    f.timesMs.push(elapsedMs);
+    if(f.timesMs.length > 8) f.timesMs.shift();
+    atualizarBaseline(elapsedMs);
+    var rapida = respostaRapida(elapsedMs);
+    f.correctStreak++; f.wrongStreak = 0;
+    if(rapida){
+      f.fluentStreak++;
+    } else {
+      f.fluentStreak = 0;
+    }
+    if(f.fluentStreak >= MASTERY_STREAK){
